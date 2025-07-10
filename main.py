@@ -1,10 +1,11 @@
 import itertools
-
 import cv2
 import numpy as np
 
+
 __ARROW_PATH = "a.jpg"
 __ANGLE_THRESHOLD = 50.0
+
 
 def show_image(image):
     cv2.imshow("Image", image)
@@ -76,7 +77,6 @@ def find_best_contour(contours):
         approx_points = set(tuple(p[0]) for p in approx)
         base_points = set(tuple(map(int, p[0])) for p in points[min_error])
         non_colinear_points = list(approx_points - base_points)
-
 
         closest_point = closest_point_to_line(non_colinear_points, (direction_x, direction_y, line_point_x, line_point_y))
 
