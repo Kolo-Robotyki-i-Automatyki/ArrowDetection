@@ -3,7 +3,7 @@ import itertools
 import cv2
 import numpy as np
 
-__ARROW_PATH = "h.jpg"
+__ARROW_PATH = "a.jpg"
 __ANGLE_THRESHOLD = 50.0
 
 def show_image(image):
@@ -11,12 +11,14 @@ def show_image(image):
     cv2.waitKey(-1)
     cv2.destroyAllWindows()
 
+
 def point_line_distance(point, line):
     px, py = point
     vx, vy, x0, y0 = line
     numerator = abs(vy * (px - x0) - vx * (py - y0))
     denominator = np.sqrt(vx**2 + vy**2)
     return numerator / denominator
+
 
 def colinearity(pts, fits, points):
     pts = np.array(pts, dtype=np.float32)
@@ -30,12 +32,14 @@ def colinearity(pts, fits, points):
     fits[abs(total_error)] = (dir_x, dir_y, point_x, point_y, tuple(center[0]))
     points[abs(total_error)] = pts
 
+
 def line_angle(p1, p2):
     dx = p2[0] - p1[0]
     dy = p2[1] - p1[1]
     angle_rad = np.arctan2(dy, dx)
     angle_deg = np.degrees(angle_rad)
     return angle_deg
+
 
 def closest_point_to_line(points, line):
     closest_point = None
@@ -47,14 +51,6 @@ def closest_point_to_line(points, line):
             closest_point = point
     return closest_point
 
-def angle_between_lines(line1, line2):
-    vx1, vy1 = line1[0][0], line1[1][0]
-    vx2, vy2 = line2[0][0], line2[1][0]
-    v1 = np.array([vx1, vy1]) / np.linalg.norm([vx1, vy1])
-    v2 = np.array([vx2, vy2]) / np.linalg.norm([vx2, vy2])
-    angle_rad = np.arccos(np.clip(np.dot(v1, v2), -1.0, 1.0))
-    angle_deg = np.degrees(angle_rad)
-    return angle_deg
 
 def find_best_contour(contours):
     best_contour = None
@@ -89,6 +85,7 @@ def find_best_contour(contours):
         best_angle = line_angle((int(centerx), int(centery)), closest_point)
 
     return best_contour, best_angle
+
 
 if __name__ == "__main__":
     arrowImage = cv2.imread(__ARROW_PATH)
