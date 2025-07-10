@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 
-__ARROW_PATH = "a.jpg"
+__ARROW_PATH = "testImages/a.jpg"
 __ANGLE_THRESHOLD = 50.0
 
 
