@@ -114,7 +114,6 @@ def find_candidates(contours):
         # if diff > 0.1:
         #    continue
         candidates.append(c)
-        cv2.drawContours(arrowImage, [app], 0, (255, 0, 0), 3)
     return candidates
 
 def extract_rois(image, contours):
@@ -132,30 +131,20 @@ def eval_group(group):
 
 def find_best_contour(contours):
     best_contour = None
-    best_angle = 0.0
-    best_error = float('inf')
-    best_perm = None
+    best_angle = float('inf')
 
     for contour in contours:
         approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
         if len(approx) != 7:
             continue
 
+        fixed_approx = [approx[j][0] for j in range(7)]
         for i in range(7):
-            group = [approx[(i + j) % 7][0][0] for j in range(4)]
-            eval_group(group)
-
-        for i in range(len(approx)):
-            tmp = []
-            for j in range(len(approx)):
-                tmp.append((approx[i + j % len(approx)][0]))
-
-            error = eval_permuation(tmp)
-            if abs(error) < best_error:
-                best_error = abs(error)
+            group = [fixed_approx[(i + j) % 7] for j in range(4)]
+            angle = eval_group(group)
+            if abs(angle) < best_angle:
+                best_angle = angle
                 best_contour = contour
-                best_angle = error
-                best_perm = tmp
 
     return best_contour, best_angle
 
@@ -163,13 +152,7 @@ def evaluate_roi(roi):
     gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
     contours, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-
-    best_contour, best_angle = find_best_contour(contours)
-    if best_contour is not None:
-        cv2.drawContours(roi, [best_contour], -1, (0, 255, 0), 3)
-        print(f"Best angle: {best_angle}")
-    else:
-        print("No valid contour found.")
+    return find_best_contour(contours)
 
 if __name__ == "__main__":
     arrowImage = cv2.imread(__ARROW_PATH)
@@ -181,9 +164,19 @@ if __name__ == "__main__":
 
     candidates = find_candidates(contours)
     rois = extract_rois(arrowImage, candidates)
+    biggest_square_size = 0.0
+
+    best_contour = None
     for roi in rois:
         if roi.shape[0] < 10 or roi.shape[1] < 10:
             continue
-        evaluate_roi(roi)
+        bc, ba = evaluate_roi(roi)
+        if bc is not None and ba < __ANGLE_THRESHOLD:
+            if (roi.shape[0] * roi.shape[1]) < biggest_square_size:
+                continue
+            biggest_square_size = roi.shape[0] * roi.shape[1]
+            best_contour = bc
 
+    if best_contour is not None:
+        cv2.drawContours(arrowImage, [best_contour], -1, (0, 255, 0), 3)
     show_image(arrowImage)
