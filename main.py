@@ -1,4 +1,3 @@
-import itertools
 import cv2
 import numpy as np
 
@@ -72,34 +71,6 @@ def eval_permuation(points):
 
     return error
 
-# def find_best_contour(contours):
-#     best_contour = None
-#     best_angle = 0.0
-#     best_error = float('inf')
-#     best_perm = None
-#     for i, contour in enumerate(contours):
-#         if i == 0:
-#             continue
-#
-#         approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
-#         if len(approx) != 7:
-#             continue
-#
-#         for i in range(len(approx)):
-#             tmp = []
-#             for j in range(len(approx)):
-#                 tmp.append((approx[i + j % len(approx)]))
-#             err = eval_permuation(tmp)
-#             if abs(err) < best_error:
-#                 best_error = abs(err)
-#                 best_contour = contour
-#                 best_angle = err
-#                 best_perm = tmp
-#
-#         return best_contour, best_angle
-#
-#     return best_contour
-
 def find_candidates(contours):
     candidates = []
     for c in contours:
@@ -129,6 +100,17 @@ def eval_group(group):
     dir_cd = group[3] - group[2]
     return np.arctan2(dir_cd[1], dir_cd[0]) - np.arctan2(dir_ab[1], dir_ab[0])
 
+def arrow_angle(pts, p1, p2):
+    if len(pts) != 3:
+        raise "Ugabuga, not enough points for arrow angle calculation"
+
+    line = cv2.fitLine([p1, p2], cv2.DIST_L2, 0, 0.0, 0.01)
+    closest_point = closest_point_to_line(pts, line)
+
+
+    for pt in pts:
+        dist =
+
 def find_best_contour(contours):
     best_contour = None
     best_angle = float('inf')
@@ -145,6 +127,9 @@ def find_best_contour(contours):
             if abs(angle) < best_angle:
                 best_angle = angle
                 best_contour = contour
+                left_approx = [fixed_approx[(i - 1 - k) % 7] for k in range(3)]
+                arrow_angle(left_approx)
+
 
     return best_contour, best_angle
 
