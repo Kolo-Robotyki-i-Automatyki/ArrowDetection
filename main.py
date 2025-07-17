@@ -1,8 +1,9 @@
+import itertools
 import cv2
 import numpy as np
 
 
-__ARROW_PATH = "testImages/d.jpg"
+__ARROW_PATH = "testImages/c.jpg"
 __ANGLE_THRESHOLD = 20000000.0 #50.0
 __BOX_FIELD_THRESHOLD = 500.0
 __ARROW_FIELD_THRESHOLD = 200.0
@@ -122,14 +123,31 @@ def arrow_angle(pts, p1, p2):
     return angle_deg
 
 
+def colinearity(pts, fits, points):
+    pts = np.array(pts, dtype=np.float32)
+    [dir_x, dir_y, point_x, point_y] = cv2.fitLine(pts, cv2.DIST_L2, 0, 0.0, 0.01)
+    center = np.mean(pts, axis=0)
+
+    total_error = 0.0
+    for pt in pts:
+        total_error += point_line_distance(pt, (dir_x, dir_y, point_x, point_y))[0]
+
+    fits[abs(total_error)] = (dir_x, dir_y, point_x, point_y, tuple(center))
+    points[abs(total_error)] = pts
+
+
+def line_angle(p1, p2):
+    dx = p2[0] - p1[0]
+    dy = p2[1] - p1[1]
+    angle_rad = np.arctan2(dy, dx)
+    angle_deg = np.degrees(angle_rad)
+    return angle_deg
+
+
 def find_best_contour(contours):
     best_contour = None
-    best_angle_err = float('inf')
-    best_contour_angle = 0.0
-
+    best_angle = 0.0
     for contour in contours:
-        best_group = None
-        loc_best_err = float('inf')
         area = cv2.contourArea(contour)
         if area < __ARROW_FIELD_THRESHOLD:
             continue
@@ -138,26 +156,26 @@ def find_best_contour(contours):
             continue
         cv2.drawContours(arrowImage, [contour], -1, (255, 0, 0), 3)
         fixed_approx = [approx[j][0] for j in range(7)]
-        for i in range(7):
-            group = [fixed_approx[(i + j) % 7] for j in range(4)]
-            angle_err = eval_group(group)
-            if abs(angle_err) < best_angle_err:
-                best_angle_err = angle_err
-                best_contour = contour
-                left_approx = [fixed_approx[(i - 1 - k) % 7] for k in range(3)]
-                best_contour_angle = arrow_angle(left_approx, group[0], group[3])
-            if abs(angle_err) < loc_best_err:
-                loc_best_err = angle_err
-                best_group = group
 
-        if best_group is not None:
-            for i, p in enumerate(best_group):
-                if i%2 == 0:
-                    cv2.circle(arrowImage, p, 5, (0, 0, 255), -1)
-                else:
-                    cv2.circle(arrowImage, p, 5, (255, 255, 255), -1)
+        fits = {}
+        points = {}
+        for combo in itertools.combinations(fixed_approx, 4):
+            colinearity(combo, fits, points)
 
-    return best_contour, best_angle_err, best_contour_angle
+        min_error = min(fits.keys())
+        (direction_x, direction_y, line_point_x, line_point_y, (centerx, centery)) = fits[min_error]
+        approx_points = set(tuple(p) for p in fixed_approx)
+        base_points = set(tuple(map(int, p)) for p in points[min_error])
+        non_colinear_points = list(approx_points - base_points)
+
+        closest_point = closest_point_to_line(non_colinear_points,
+                                              (direction_x, direction_y, line_point_x, line_point_y))
+
+        best_contour = contour
+        best_size = cv2.contourArea(contour)
+        best_angle = line_angle((int(centerx), int(centery)), closest_point)
+
+    return best_contour, best_angle
 
 
 def evaluate_roi(roi):
@@ -183,8 +201,8 @@ if __name__ == "__main__":
     for roi in rois:
         if roi.shape[0] < 10 or roi.shape[1] < 10:
             continue
-        bc, bar, bca = evaluate_roi(roi)
-        if bc is not None and bar < __ANGLE_THRESHOLD:
+        bc, ba = evaluate_roi(roi)
+        if bc is not None and ba:
             if (roi.shape[0] * roi.shape[1]) < biggest_square_size:
                 continue
             biggest_square_size = roi.shape[0] * roi.shape[1]
@@ -193,7 +211,7 @@ if __name__ == "__main__":
     if best_contour is not None:
         cv2.drawContours(arrowImage, [best_contour], -1, (0, 255, 0), 3)
         # Print the angle of the best contour
-        print(bca)
+        print(ba)
     else:
         raise Exception("No suitable contour found")
     show_image(arrowImage)
