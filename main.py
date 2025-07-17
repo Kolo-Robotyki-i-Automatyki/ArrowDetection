@@ -2,9 +2,12 @@ import cv2
 import numpy as np
 
 
-__ARROW_PATH = "testImages/a.jpg"
-__ANGLE_THRESHOLD = 50.0
+__ARROW_PATH = "testImages/d.jpg"
+__ANGLE_THRESHOLD = 20000000.0 #50.0
+__BOX_FIELD_THRESHOLD = 500.0
+__ARROW_FIELD_THRESHOLD = 200.0
 __ANGLES = [90.0, 90.0, 270.0, 60.0, 60.0, 60.0, 270.0]
+__RIGHT_ANGLE = 90.0
 
 
 def show_image(image):
@@ -61,11 +64,14 @@ def find_candidates(contours):
             continue
 
         lenA = np.sqrt((app[1][0][0] - app[0][0][0]) ** 2 + (app[1][0][1] - app[0][0][1]) ** 2)
-        lenB = np.sqrt((app[3][0][0] - app[3][0][0]) ** 2 + (app[3][0][1] - app[2][0][1]) ** 2)
+        lenB = np.sqrt((app[3][0][0] - app[2][0][0]) ** 2 + (app[3][0][1] - app[2][0][1]) ** 2)
+        lenC = np.sqrt((app[2][0][0] - app[1][0][0]) ** 2 + (app[2][0][1] - app[1][0][1]) ** 2)
         maxLen = max(lenA, lenB)
         diff = abs(lenA - lenB) / maxLen
         # if diff > 0.1:
         #    continue
+        if (lenB * lenC < __BOX_FIELD_THRESHOLD):
+            continue
         candidates.append(c)
     return candidates
 
@@ -79,10 +85,24 @@ def extract_rois(image, contours):
     return rois
 
 
+def angle_between(v1, v2):
+    angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
+    angle = (angle + np.pi) % (2 * np.pi) - np.pi  # normalize to [-π, π]
+    return np.degrees(abs(angle))
+
+
 def eval_group(group):
     dir_ab = group[1] - group[0]
+    dir_bc = group[2] - group[1]
     dir_cd = group[3] - group[2]
-    return np.arctan2(dir_cd[1], dir_cd[0]) - np.arctan2(dir_ab[1], dir_ab[0])
+    dir_da = group[0] - group[3]
+
+    angle_abc = angle_between(dir_ab, dir_bc)
+    angle_bcd = angle_between(dir_bc, dir_cd)
+    angle_cda = angle_between(dir_cd, dir_da)
+    angle_dab = angle_between(dir_da, dir_ab)
+
+    return (__RIGHT_ANGLE - angle_abc) ** 2 + (__RIGHT_ANGLE - angle_bcd) ** 2 + (__RIGHT_ANGLE - angle_cda)** 2 + (__RIGHT_ANGLE - angle_dab) ** 2
 
 
 def arrow_angle(pts, p1, p2):
@@ -108,10 +128,15 @@ def find_best_contour(contours):
     best_contour_angle = 0.0
 
     for contour in contours:
+        best_group = None
+        loc_best_err = float('inf')
+        area = cv2.contourArea(contour)
+        if area < __ARROW_FIELD_THRESHOLD:
+            continue
         approx = cv2.approxPolyDP(contour, 0.01 * cv2.arcLength(contour, True), True)
         if len(approx) != 7:
             continue
-
+        cv2.drawContours(arrowImage, [contour], -1, (255, 0, 0), 3)
         fixed_approx = [approx[j][0] for j in range(7)]
         for i in range(7):
             group = [fixed_approx[(i + j) % 7] for j in range(4)]
@@ -121,6 +146,16 @@ def find_best_contour(contours):
                 best_contour = contour
                 left_approx = [fixed_approx[(i - 1 - k) % 7] for k in range(3)]
                 best_contour_angle = arrow_angle(left_approx, group[0], group[3])
+            if abs(angle_err) < loc_best_err:
+                loc_best_err = angle_err
+                best_group = group
+
+        if best_group is not None:
+            for i, p in enumerate(best_group):
+                if i%2 == 0:
+                    cv2.circle(arrowImage, p, 5, (0, 0, 255), -1)
+                else:
+                    cv2.circle(arrowImage, p, 5, (255, 255, 255), -1)
 
     return best_contour, best_angle_err, best_contour_angle
 
@@ -159,4 +194,6 @@ if __name__ == "__main__":
         cv2.drawContours(arrowImage, [best_contour], -1, (0, 255, 0), 3)
         # Print the angle of the best contour
         print(bca)
+    else:
+        raise Exception("No suitable contour found")
     show_image(arrowImage)
