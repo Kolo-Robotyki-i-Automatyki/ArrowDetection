@@ -3,7 +3,7 @@ import cv2
 import numpy as np
 
 
-__ARROW_PATH = "testImages/c.jpg"
+__ARROW_PATH = "testImages/i.jpg"
 __ANGLE_THRESHOLD = 20000000.0 #50.0
 __BOX_FIELD_THRESHOLD = 500.0
 __ARROW_FIELD_THRESHOLD = 200.0
@@ -45,18 +45,6 @@ def line_dir(p1, p2):
     return dx / length, dy / length
 
 
-def eval_permuation(points):
-    error = 0.0
-    for i in range(len(points)):
-        dir_ab = line_dir(points[i+1], points[(i + 2) % len(points)])
-        dir_ac = line_dir(points[i], points[(i + 1) % len(points)])
-
-        angle = np.atan2(dir_ac[1], dir_ac[0]) - np.atan2(dir_ab[1], dir_ab[0])
-        error += __ANGLES[i] - np.degrees(angle)
-
-    return error
-
-
 def find_candidates(contours):
     candidates = []
     for c in contours:
@@ -84,43 +72,6 @@ def extract_rois(image, contours):
         roi = image[y:y+h, x:x+w]  # crop the ROI
         rois.append(roi)
     return rois
-
-
-def angle_between(v1, v2):
-    angle = np.arctan2(v2[1], v2[0]) - np.arctan2(v1[1], v1[0])
-    angle = (angle + np.pi) % (2 * np.pi) - np.pi  # normalize to [-π, π]
-    return np.degrees(abs(angle))
-
-
-def eval_group(group):
-    dir_ab = group[1] - group[0]
-    dir_bc = group[2] - group[1]
-    dir_cd = group[3] - group[2]
-    dir_da = group[0] - group[3]
-
-    angle_abc = angle_between(dir_ab, dir_bc)
-    angle_bcd = angle_between(dir_bc, dir_cd)
-    angle_cda = angle_between(dir_cd, dir_da)
-    angle_dab = angle_between(dir_da, dir_ab)
-
-    return (__RIGHT_ANGLE - angle_abc) ** 2 + (__RIGHT_ANGLE - angle_bcd) ** 2 + (__RIGHT_ANGLE - angle_cda)** 2 + (__RIGHT_ANGLE - angle_dab) ** 2
-
-
-def arrow_angle(pts, p1, p2):
-    if len(pts) != 3:
-        raise "Ugabuga, not enough points for arrow angle calculation"
-
-    line = cv2.fitLine(np.array([p1, p2]), cv2.DIST_L2, 0, 0.0, 0.01)
-    closest_point = closest_point_to_line(pts, line)
-    mid_point = (p1 + p2) / 2.0
-    direction_vector = closest_point - mid_point
-
-    angle_rad = np.arctan2(direction_vector[1], direction_vector[0])
-    angle_deg = np.degrees(angle_rad)
-
-    if angle_deg < 0:
-        angle_deg += 360
-    return angle_deg
 
 
 def colinearity(pts, fits, points):
@@ -198,6 +149,7 @@ if __name__ == "__main__":
     biggest_square_size = 0.0
 
     best_contour = None
+    best_angle = 0.0
     for roi in rois:
         if roi.shape[0] < 10 or roi.shape[1] < 10:
             continue
@@ -207,11 +159,12 @@ if __name__ == "__main__":
                 continue
             biggest_square_size = roi.shape[0] * roi.shape[1]
             best_contour = bc
+            best_angle = ba
 
     if best_contour is not None:
         cv2.drawContours(arrowImage, [best_contour], -1, (0, 255, 0), 3)
         # Print the angle of the best contour
-        print(ba)
+        print(best_angle)
     else:
         raise Exception("No suitable contour found")
     show_image(arrowImage)
